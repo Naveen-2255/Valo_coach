@@ -1,65 +1,105 @@
-import Image from "next/image";
+'use client';
+import { useState } from 'react';
 
 export default function Home() {
+  const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [feedback, setFeedback] = useState<string | null>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setVideoFile(file);
+      setPreviewUrl(URL.createObjectURL(file));
+      setFeedback(null); // Clear old feedback when uploading a new video
+    }
+  };
+
+  const handleAnalyze = async () => {
+    if (!videoFile) return;
+    setIsLoading(true);
+    setFeedback(null);
+
+    // Prepare the video file to send to the backend
+    const formData = new FormData();
+    formData.append('video', videoFile);
+
+    try {
+      const response = await fetch('/api/analyze', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await response.json();
+      
+      if (data.feedback) {
+        setFeedback(data.feedback);
+      } else {
+        alert("Oops! Something went wrong: " + data.error);
+      }
+    } catch (error) {
+      alert("Error talking to the AI coach.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+    <main className="min-h-screen bg-neutral-900 text-white flex flex-col items-center py-10 px-6 font-sans">
+      <div className="max-w-2xl w-full bg-neutral-800 p-8 rounded-xl shadow-2xl border border-red-500/30">
+        <h1 className="text-4xl font-black text-center mb-2 uppercase tracking-wide text-red-500">
+          Valorant AI Coach
+        </h1>
+        <p className="text-gray-400 text-center mb-8">
+          Upload a 30-second clip of your death. Get roasted. Get better.
+        </p>
+
+        {/* Upload Box */}
+        {!previewUrl ? (
+          <label className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed border-gray-600 rounded-lg cursor-pointer bg-neutral-700/50 hover:bg-neutral-700 transition">
+            <div className="flex flex-col items-center justify-center pt-5 pb-6">
+              <span className="text-gray-400 mb-2 text-xl">📁 Click to upload a VOD (.mp4)</span>
+              <p className="text-xs text-gray-500">Max 30 seconds recommended</p>
+            </div>
+            <input type="file" accept="video/mp4,video/webm" className="hidden" onChange={handleFileChange} />
+          </label>
+        ) : (
+          <div className="flex flex-col items-center">
+            <video 
+              src={previewUrl} 
+              controls 
+              className="w-full rounded-lg mb-4 border border-neutral-700 shadow-lg"
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+            
+            {/* Action Buttons */}
+            <div className="flex gap-4 w-full mb-6">
+              <button 
+                onClick={() => { setPreviewUrl(null); setVideoFile(null); setFeedback(null); }}
+                className="flex-1 px-4 py-3 bg-neutral-700 hover:bg-neutral-600 rounded-lg font-bold transition disabled:opacity-50"
+                disabled={isLoading}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleAnalyze}
+                className="flex-1 px-4 py-3 bg-red-500 hover:bg-red-600 rounded-lg font-bold transition text-white flex justify-center items-center disabled:opacity-50"
+                disabled={isLoading}
+              >
+                {isLoading ? "Coach is watching..." : "Analyze My Mistake"}
+              </button>
+            </div>
+
+            {/* AI Feedback Box */}
+            {feedback && (
+              <div className="w-full p-6 bg-neutral-900 border border-neutral-700 rounded-lg whitespace-pre-wrap">
+                <h3 className="text-red-400 font-bold mb-2 text-lg">Coach's Analysis:</h3>
+                <p className="text-gray-300 leading-relaxed">{feedback}</p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </main>
   );
 }
