@@ -5,6 +5,9 @@ import { writeFile } from 'fs/promises';
 import path from 'path';
 import os from 'os';
 
+// ADD THIS LINE TO FIX VERCEL TIMEOUTS:
+export const maxDuration = 60; 
+
 const apiKey = process.env.GEMINI_API_KEY as string;
 const genAI = new GoogleGenerativeAI(apiKey);
 const fileManager = new GoogleAIFileManager(apiKey);

@@ -339,7 +339,30 @@ export default function Home() {
             {!previewUrl ? (
               <label className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed border-gray-600 rounded-lg cursor-pointer hover:bg-gray-800/50 transition">
                 <span className="text-gray-400 mb-2 text-xl">📁 Select Video (.mp4)</span>
-                <input type="file" accept="video/mp4,video/webm" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if(f){ setVideoFile(f); setPreviewUrl(URL.createObjectURL(f)); } }} />
+                
+                {/* NEW: The 4.5MB Warning Message */}
+                <span className="text-[#ff4655] text-sm font-bold bg-[#ff4655]/10 px-3 py-1 rounded mt-2">
+                  ⚠️ Max file size: 4.5 MB
+                </span>
+                
+                <input 
+                  type="file" 
+                  accept="video/mp4,video/webm" 
+                  className="hidden" 
+                  onChange={(e) => { 
+                    const f = e.target.files?.[0]; 
+                    if(f){ 
+                      // NEW: JavaScript check to block files larger than 4.5 MB
+                      const maxSizeInBytes = 4.5 * 1024 * 1024;
+                      if (f.size > maxSizeInBytes) {
+                        alert("File is too large! Because this is a free portfolio demo, please compress your video to under 4.5 MB.");
+                        return;
+                      }
+                      setVideoFile(f); 
+                      setPreviewUrl(URL.createObjectURL(f)); 
+                    } 
+                  }} 
+                />
               </label>
             ) : (
               <div className="flex flex-col">
