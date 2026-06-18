@@ -362,6 +362,25 @@ export default function Home() {
           </div>
         )}
       </div>
+
+      {/* --- NEW FOOTER --- */}
+      <footer className="w-full max-w-6xl mt-16 pt-8 border-t border-gray-800/50 text-center text-gray-500 text-sm pb-8 flex flex-col items-center gap-2">
+        <p>&copy; {new Date().getFullYear()} Copyright reserved to Naveen Joseph.</p>
+        <p>
+          Creatively built by{' '}
+          <a 
+            href="https://www.naveenjoseph.me/" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="text-[#ff4655] font-bold hover:text-white transition-colors duration-300 relative group"
+          >
+            Naveen Joseph
+            {/* Cool animated underline effect on hover */}
+            <span className="absolute -bottom-1 left-0 w-0 h-[2px] bg-[#ff4655] transition-all duration-300 group-hover:w-full"></span>
+          </a>
+        </p>
+      </footer>
+
     </main>
   );
 }
