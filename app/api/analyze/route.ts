@@ -13,79 +13,65 @@ export async function POST(req: NextRequest) {
   try {
     const data = await req.formData();
     const file: File | null = data.get('video') as unknown as File;
-    const agent: string = data.get('agent') as string || 'the player'; // NEW: Get the agent name
+    const agent: string = data.get('agent') as string;
+    const matchContext: string = data.get('matchContext') as string || 'No match context provided.';
 
-    if (!file) {
-      return NextResponse.json({ error: 'No video uploaded' }, { status: 400 });
-    }
+    if (!file) return NextResponse.json({ error: 'No video uploaded' }, { status: 400 });
 
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
-
     const tempFilePath = path.join(os.tmpdir(), file.name);
     await writeFile(tempFilePath, buffer);
 
-    const uploadResult = await fileManager.uploadFile(tempFilePath, {
-      mimeType: file.type,
-      displayName: "Valorant VOD",
-    });
-
-    console.log("Uploaded. Waiting for Google to process a potentially large video...");
+    const uploadResult = await fileManager.uploadFile(tempFilePath, { mimeType: file.type, displayName: "Valorant VOD" });
 
     let googleFile = await fileManager.getFile(uploadResult.file.name);
     while (googleFile.state === 'PROCESSING') {
-      console.log('Processing video... waiting 3 seconds.');
       await new Promise((resolve) => setTimeout(resolve, 3000));
       googleFile = await fileManager.getFile(uploadResult.file.name);
     }
-
-    if (googleFile.state === 'FAILED') {
-      throw new Error("Google AI failed to process the video file.");
-    }
-
-    console.log(`Video ready! Asking coach to analyze ${agent}...`);
+    if (googleFile.state === 'FAILED') throw new Error("Video processing failed.");
 
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
     
-    // NEW: Highly specific, strict prompt to lock onto your agent and ignore the rest
+    // NEW SUPER-PROMPT: Combining Stats Context with Video Analysis
     const prompt = `
-      You are a Radiant-level Valorant coach analyzing a VOD. 
-      The user is playing as the agent: ${agent}. 
+      You are a strictly objective, data-driven Valorant Analyst. Watch this VOD of the user playing ${agent}.
+      Video AI is prone to visual hallucinations. To prevent this, you MUST follow a strict 3-step verification process. DO NOT SKIP STEPS. DO NOT GUESS.
 
-      CRITICAL INSTRUCTIONS TO PREVENT HALLUCINATIONS:
-      Video game footage can be blurry. DO NOT guess or invent details. 
-      - Do NOT confidently name an enemy agent (like Sova or Cypher) unless you clearly see their character model or the kill feed. Use "the enemy" if unsure.
-      - Do NOT say abilities were available unless you clearly see the HUD ability icons at the bottom of the screen.
-      - Do NOT say the player "missed" or "whiffed" unless you clearly see the bullet tracers missing.
-      - Focus heavily on crosshair placement (is it at head level?), positioning (are they in the open?), and crossfire vulnerabilities.
+      **PHASE 1: HUD & INVENTORY CHECK (Objective Facts Only)**
+      - Look at the bottom center of the screen at the very beginning. State the exact number of ability charges they have. State their ultimate points (e.g., 3/6).
+      - Watch the abilities. In Valorant, players can equip an ability (causing screen effects) and then CANCEL it without using it.
+      - RULE: An ability is ONLY used if the charge number goes down. If the charge number stays the same, the ability was CANCELLED. State exactly which abilities were actually consumed.
 
-      Before answering, carefully analyze the video step-by-step. Then, format your final response EXACTLY like this:
+      **PHASE 2: COMBAT VERIFICATION (Objective Facts Only)**
+      - DO NOT assume a kill happened just because the player shot their gun.
+      - RULE: You must verify a kill by looking for the red skull icon or checking the top-right kill feed.
+      - How does the clip end? Does the user die, survive, or win the round? If they die, check the combat report popup to see who killed them.
 
-      **The Situation:**
-      (Briefly describe the exact gunfight or death objectively. What weapon was ${agent} using? Where were they on the map? Who did they fight?)
+      **PHASE 3: THE COACHING ANALYSIS**
+      - Now, and ONLY now, use the facts established in Phase 1 and 2 to analyze the player's mechanics.
+      - Did they die with unused utility? (e.g., "You died with 2 Leers available").
+      - How was their crosshair placement? (Were they aiming at walls? Head height?)
+      - How was their movement? (Did they dry-peek? Did they run with a knife out in a dangerous area?)
+      - Provide 2 brutally honest, highly specific tips to fix their mechanics.
 
-      **The Mistake:**
-      (What was the actual tactical error? Focus on positioning, crosshair placement, movement, or map awareness. Do not invent missed shots or fake ability usage.)
+      FORMAT YOUR EXACT RESPONSE LIKE THIS:
 
-      **The Fix:**
-      1. (First actionable tip)
-      2. (Second actionable tip)
+      **🔍 Step 1: HUD & Utility Analysis**
+      (List the abilities they had, and verify if the charges actually went down. Confirm Ultimate status).
+
+      **⚔️ Step 2: Combat Verification**
+      (List the actual outcome of the clip. Who died, based ONLY on the kill feed/combat report).
+
+      **🎯 Step 3: Coach's Verdict**
+      (The tactical mistakes made, and the 2 tips to fix them based on the objective data).
     `;
 
-    const result = await model.generateContent([
-      {
-        fileData: {
-          mimeType: uploadResult.file.mimeType,
-          fileUri: uploadResult.file.uri
-        }
-      },
-      prompt
-    ]);
-
+    const result = await model.generateContent([{ fileData: { mimeType: uploadResult.file.mimeType, fileUri: uploadResult.file.uri } }, prompt]);
     return NextResponse.json({ feedback: result.response.text() });
 
   } catch (error: any) {
-    console.error("AI Coach Error:", error);
-    return NextResponse.json({ error: error.message || 'Failed to analyze video.' }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
