@@ -6,32 +6,37 @@ const genAI = new GoogleGenerativeAI(apiKey);
 
 export async function POST(req: NextRequest) {
   try {
-    const { playerName, matchData } = await req.json();
+    const body = await req.json();
+    const { playerName, matchData } = body;
 
+    if (!playerName || !matchData) {
+      return NextResponse.json({ error: 'Missing player data.' }, { status: 400 });
+    }
+
+    // We use 1.5-pro here because it is much more stable and rarely gets the 503 Traffic Error
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
-    // This prompt forces the AI to act exactly like a Tracker.gg Analyst
     const prompt = `
-      You are an elite Valorant Analyst and Radiant Coach. I am giving you advanced Tracker.gg style metrics for a player named ${playerName} over their last 5 matches.
+      You are an elite Valorant Analyst and Radiant Coach. I am giving you advanced Tracker.gg style metrics for a player named ${playerName} over their last 20 matches.
       
       Tracker Data:
       ${JSON.stringify(matchData)}
 
-      CRITICAL COACHING RUBRIC (YOU MUST FOLLOW THIS):
-      1. Headshot Percentage (HS%): Pro players have 25%+. If it's below 20%, tell them to stop spraying/crouching and work on crosshair placement.
-      2. Average Combat Score (ACS): Below 200 means low impact. Above 250 means they are hard-carrying.
-      3. Agent Roles: Duelists (Reyna/Jett) MUST have high First Bloods. Initiators/Controllers should have high assists. Sentinels should have high survivability (low deaths).
-      4. DO NOT hallucinate. Do not roast them for low assists if they are playing a Duelist. 
+      CRITICAL COACHING RUBRIC:
+      1. Headshot Percentage (HS%): Pro players have 25%+. If it's below 20%, tell them to work on crosshair placement.
+      2. Average Combat Score (ACS): Below 200 means low impact. Above 250 means they are carrying.
+      3. Agent Roles: Look at their recent games. Are they playing Duelists, Controllers, or Sentinels? Grade them based on their role (e.g., Duelists need high KD, Initiators need assists).
+      4. DO NOT hallucinate. Be highly analytical.
 
-      Format your response like a professional dashboard analysis:
+      Format your response exactly like this:
       **📊 Tracker Summary:**
-      (Objectively analyze their HS%, ACS, and K/D. Are their mechanics good for their role?)
+      (Objectively analyze their HS%, ACS, and Win Rate. Are their mechanics good for their role?)
 
       **⚠️ The Weakness:**
-      (Identify the single biggest statistical flaw in these 5 games based on the numbers).
+      (Identify the single biggest statistical flaw in these 20 games).
 
       **🎯 How to Improve:**
-      (Give 2 highly specific, mechanical or game-sense tips to fix that exact statistical weakness).
+      (Give 2 highly specific tips to fix that exact statistical weakness).
     `;
 
     const result = await model.generateContent(prompt);
@@ -40,6 +45,7 @@ export async function POST(req: NextRequest) {
 
   } catch (error: any) {
     console.error("AI Stat Coach Error:", error);
-    return NextResponse.json({ error: 'Failed to analyze stats.' }, { status: 500 });
+    // This ensures the error is safely sent to the frontend so you can read it!
+    return NextResponse.json({ error: error.message || 'Failed to analyze stats.' }, { status: 500 });
   }
 }
