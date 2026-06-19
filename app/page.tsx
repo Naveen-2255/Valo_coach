@@ -4,7 +4,6 @@ import { useState, useMemo } from 'react';
 export default function Home() {
   const [activeTab, setActiveTab] = useState<'stats' | 'vod'>('stats');
 
-  // --- STAT TRACKER STATE ---
   const [riotId, setRiotId] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [playerData, setPlayerData] = useState<any>(null);
@@ -12,7 +11,6 @@ export default function Home() {
   const [isCoachingStats, setIsCoachingStats] = useState(false);
   const [aiStatFeedback, setAiStatFeedback] = useState<string | null>(null);
 
-  // --- VOD REVIEW STATE ---
   const [selectedMatch, setSelectedMatch] = useState<any>(null);
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -35,41 +33,23 @@ export default function Home() {
     finally { setIsSearching(false); }
   };
 
-  // --- AGGREGATE STATS ---
   const aggregatedStats = useMemo(() => {
     if (!playerData || !playerData.matches) return null;
-    
-    let kills = 0, deaths = 0, assists = 0, wins = 0;
-    let headshots = 0, bodyshots = 0, legshots = 0;
-    let totalScore = 0, totalRounds = 0;
-    let validMatchesCount = 0;
+    let kills = 0, deaths = 0, assists = 0, wins = 0, headshots = 0, bodyshots = 0, legshots = 0, totalScore = 0, totalRounds = 0, validMatchesCount = 0;
 
     playerData.matches.forEach((match: any) => {
       const myStats = match.players.all_players.find((p: any) => p.name.toLowerCase() === playerData.account.name.toLowerCase());
       if (!myStats) return;
-
       validMatchesCount++;
       const myTeam = myStats.team ? myStats.team.toLowerCase() : null;
-
-      if (myTeam && match.teams && match.teams[myTeam]) {
-        if (match.teams[myTeam].has_won) wins++;
-      }
-
-      kills += myStats.stats.kills;
-      deaths += myStats.stats.deaths;
-      assists += myStats.stats.assists;
-      headshots += myStats.stats.headshots;
-      bodyshots += myStats.stats.bodyshots;
-      legshots += myStats.stats.legshots;
-      totalScore += myStats.stats.score;
-
-      const redRounds = match.teams?.red?.rounds_won || 0;
-      const blueRounds = match.teams?.blue?.rounds_won || 0;
+      if (myTeam && match.teams && match.teams[myTeam]) { if (match.teams[myTeam].has_won) wins++; }
+      kills += myStats.stats.kills; deaths += myStats.stats.deaths; assists += myStats.stats.assists;
+      headshots += myStats.stats.headshots; bodyshots += myStats.stats.bodyshots; legshots += myStats.stats.legshots; totalScore += myStats.stats.score;
+      const redRounds = match.teams?.red?.rounds_won || 0; const blueRounds = match.teams?.blue?.rounds_won || 0;
       totalRounds += (redRounds + blueRounds);
     });
 
     const totalHits = headshots + bodyshots + legshots;
-
     return {
       winRate: validMatchesCount > 0 ? Math.round((wins / validMatchesCount) * 100) : 0,
       kd: deaths > 0 ? (kills / deaths).toFixed(2) : kills,
@@ -82,17 +62,9 @@ export default function Home() {
     };
   }, [playerData]);
 
-  // --- AI ACTIONS ---
   const handleAnalyzeStats = async () => {
-    if (!playerData || !aggregatedStats) {
-      alert("Data is still loading, please wait a second and try again!");
-      return;
-    }
-    
-    setIsCoachingStats(true); 
-    setAiStatFeedback(null);
-
-    // Grab a quick summary of the recent matches so the AI knows what agents they play
+    if (!playerData || !aggregatedStats) { alert("Data is loading, please try again!"); return; }
+    setIsCoachingStats(true); setAiStatFeedback(null);
     const simplifiedMatches = playerData.matches.map((match: any) => {
       const myStats = match.players.all_players.find((p: any) => p.name.toLowerCase() === playerData.account.name.toLowerCase());
       if (!myStats) return null;
@@ -100,161 +72,155 @@ export default function Home() {
     }).filter(Boolean);
 
     try {
-      const res = await fetch('/api/coach-stats', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        // Send BOTH the aggregated totals and the match breakdown
-        body: JSON.stringify({ 
-          playerName: playerData.account.name, 
-          matchData: { averages: aggregatedStats, recentGames: simplifiedMatches } 
-        }),
-      });
+      const res = await fetch('/api/coach-stats', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ playerName: playerData.account.name, matchData: { averages: aggregatedStats, recentGames: simplifiedMatches } }) });
       const data = await res.json();
-      
-      // THIS WAS MISSING: It will now accurately tell you if the AI crashes!
-      if (data.feedback) {
-        setAiStatFeedback(data.feedback);
-      } else {
-        alert("AI Error: " + data.error); 
-      }
-    } catch (err) { 
-      alert("Failed to connect to the AI Stat Coach."); 
-    } 
-    finally { 
-      setIsCoachingStats(false); 
-    }
+      if (data.feedback) setAiStatFeedback(data.feedback); else alert("AI Error: " + data.error);
+    } catch (err) { alert("Failed to connect to the AI."); } 
+    finally { setIsCoachingStats(false); }
   };
 
   const handleSelectMatchForVod = (matchInfo: any) => {
-    setSelectedMatch(matchInfo);
-    setVideoFile(null); setPreviewUrl(null); setAiVodFeedback(null);
-    setActiveTab('vod');
+    setSelectedMatch(matchInfo); setVideoFile(null); setPreviewUrl(null); setAiVodFeedback(null); setActiveTab('vod');
   };
 
   const handleAnalyzeVideo = async () => {
     if (!videoFile) return;
-    setIsAnalyzingVideo(true); 
-    setAiVodFeedback(null);
-
+    setIsAnalyzingVideo(true); setAiVodFeedback(null);
     const formData = new FormData();
     formData.append('video', videoFile);
-    
     if (selectedMatch) {
-      // NEW: Included selectedMatch.mode in the text we send to Gemini!
       const contextString = `Mode: ${selectedMatch.mode}, Map: ${selectedMatch.map}, Result: ${selectedMatch.won ? 'Victory' : 'Defeat'}, Stats: ${selectedMatch.kills}K/${selectedMatch.deaths}D/${selectedMatch.assists}A on ${selectedMatch.agent}`;
-      formData.append('agent', selectedMatch.agent);
-      formData.append('matchContext', contextString);
+      formData.append('agent', selectedMatch.agent); formData.append('matchContext', contextString);
     } else {
-      formData.append('agent', 'the player');
-      formData.append('matchContext', 'No match context provided.');
+      formData.append('agent', 'the player'); formData.append('matchContext', 'No match context provided.');
     }
-
     try {
       const response = await fetch('/api/analyze', { method: 'POST', body: formData });
       const data = await response.json();
-      if (data.feedback) setAiVodFeedback(data.feedback);
-      else alert("Oops! " + data.error);
-    } catch (error) { 
-      alert("Error talking to the AI coach."); 
-    } finally { 
-      setIsAnalyzingVideo(false); 
-    }
+      if (data.feedback) setAiVodFeedback(data.feedback); else alert("Oops! " + data.error);
+    } catch (error) { alert("Error talking to the AI coach."); } 
+    finally { setIsAnalyzingVideo(false); }
   };
 
   return (
-    <main className="min-h-screen bg-[#0f1923] text-gray-200 font-sans p-6 flex flex-col items-center">
-      <div className="w-full max-w-6xl flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-black uppercase text-[#ff4655] tracking-tighter">Valorant <span className="text-white">AI Tracker</span></h1>
-        <form onSubmit={handleSearch} className="flex w-96">
-          <input type="text" placeholder="RiotId#Tag" value={riotId} onChange={(e) => setRiotId(e.target.value)} className="flex-1 px-4 py-2 bg-[#1f2326] border border-gray-700 rounded-l-md focus:outline-none focus:border-[#ff4655]" required />
-          <button type="submit" disabled={isSearching} className="px-6 py-2 bg-[#ff4655] hover:bg-[#ff5866] text-white font-bold rounded-r-md transition disabled:opacity-50">{isSearching ? "..." : "Search"}</button>
+    <main className="min-h-screen bg-[#0f1923] text-gray-200 font-sans p-6 flex flex-col items-center relative z-0">
+      {/* TACTICAL GRID BACKGROUND */}
+      <div className="fixed inset-0 pointer-events-none z-[-1] opacity-20 bg-[linear-gradient(to_right,#ffffff20_1px,transparent_1px),linear-gradient(to_bottom,#ffffff20_1px,transparent_1px)] bg-[size:3rem_3rem]"></div>
+      
+      {/* HEADER */}
+      <div className="w-full max-w-6xl flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+        <h1 className="text-3xl font-black uppercase text-white tracking-tighter flex items-center gap-2">
+          <span className="text-[#ff4655]">//</span> Valorant AI Tracker
+        </h1>
+        <form onSubmit={handleSearch} className="flex w-full md:w-96 shadow-lg">
+          <input type="text" placeholder="RiotId#Tag" value={riotId} onChange={(e) => setRiotId(e.target.value)} className="flex-1 px-4 py-3 bg-[#181a1e] border border-gray-700/50 rounded-none focus:outline-none focus:border-[#ff4655] font-mono text-sm transition" required />
+          <button type="submit" disabled={isSearching} className="px-8 py-3 bg-[#ff4655] hover:bg-[#ff5866] text-white font-bold uppercase tracking-wider rounded-none transition disabled:opacity-50 text-sm">
+            {isSearching ? "SCANNING" : "SEARCH"}
+          </button>
         </form>
       </div>
 
       <div className="w-full max-w-6xl">
-        <div className="flex bg-[#1f2326] rounded-md p-1 mb-6 border border-gray-800 w-80 shadow-lg">
-          <button onClick={() => setActiveTab('stats')} className={`flex-1 py-2 rounded font-bold text-sm transition ${activeTab === 'stats' ? 'bg-[#ff4655] text-white' : 'text-gray-400 hover:text-white'}`}>📊 Tracker Dashboard</button>
-          <button onClick={() => setActiveTab('vod')} className={`flex-1 py-2 rounded font-bold text-sm transition ${activeTab === 'vod' ? 'bg-[#ff4655] text-white' : 'text-gray-400 hover:text-white'}`}>🎬 VOD Coach</button>
+        {/* SLEEK UNDERLINE TABS */}
+        <div className="flex w-full border-b border-gray-800 mb-8">
+          <button onClick={() => setActiveTab('stats')} className={`px-8 py-4 font-bold text-sm uppercase tracking-widest transition relative ${activeTab === 'stats' ? 'text-[#ff4655]' : 'text-gray-500 hover:text-gray-300'}`}>
+            Overview Dashboard
+            {activeTab === 'stats' && <span className="absolute bottom-0 left-0 w-full h-[2px] bg-[#ff4655]"></span>}
+          </button>
+          <button onClick={() => setActiveTab('vod')} className={`px-8 py-4 font-bold text-sm uppercase tracking-widest transition relative ${activeTab === 'vod' ? 'text-[#ff4655]' : 'text-gray-500 hover:text-gray-300'}`}>
+            VOD Coach
+            {activeTab === 'vod' && <span className="absolute bottom-0 left-0 w-full h-[2px] bg-[#ff4655]"></span>}
+          </button>
         </div>
 
-        {statError && <div className="p-4 mb-6 bg-red-900/50 border border-red-500 rounded text-red-200">{statError}</div>}
+        {statError && <div className="p-4 mb-6 bg-[#ff4655]/10 border-l-4 border-[#ff4655] text-[#ff4655] font-mono text-sm uppercase">{statError}</div>}
 
         {/* TAB 1: TRACKER DASHBOARD */}
         {activeTab === 'stats' && playerData && aggregatedStats && (
           <div className="flex flex-col lg:flex-row gap-6">
+            
+            {/* LEFT COLUMN */}
             <div className="w-full lg:w-1/3 flex flex-col gap-6">
-              <div className="bg-[#1f2326] rounded-lg border border-gray-800 p-6 relative overflow-hidden shadow-lg">
+              
+              {/* Profile Card */}
+              <div className="bg-[#181a1e] border border-white/5 p-6 relative shadow-xl rounded-sm">
                 <div className="absolute inset-0 opacity-10 bg-cover bg-center" style={{ backgroundImage: `url(${playerData.account.card.wide})` }}></div>
-                <div className="relative z-10 flex gap-4 items-center">
-                  <img src={playerData.account.card.small} alt="Card" className="w-20 h-20 rounded border border-gray-600 shadow-md" />
+                <div className="relative z-10 flex gap-5 items-center">
+                  <img src={playerData.account.card.small} alt="Card" className="w-20 h-20 border-2 border-white/10 shadow-lg" />
                   <div>
-                    <h2 className="text-2xl font-black">{playerData.account.name} <span className="text-gray-500 text-lg">#{playerData.account.tag}</span></h2>
+                    <h2 className="text-2xl font-black uppercase tracking-tight">{playerData.account.name} <span className="text-gray-500 text-base">#{playerData.account.tag}</span></h2>
                     {playerData.mmr ? (
-                      <p className="text-[#ff4655] font-bold text-lg">{playerData.mmr.current_data.currenttierpatched} <span className="text-gray-400 text-sm ml-1 font-normal">({playerData.mmr.current_data.ranking_in_tier} RR)</span></p>
-                    ) : <p className="text-gray-400">Unranked</p>}
+                      <p className="text-[#ff4655] font-bold text-lg uppercase">{playerData.mmr.current_data.currenttierpatched} <span className="text-gray-400 text-xs ml-1 font-mono">({playerData.mmr.current_data.ranking_in_tier} RR)</span></p>
+                    ) : <p className="text-gray-400 uppercase text-sm font-bold">UNRANKED</p>}
+                    <p className="text-[10px] text-gray-500 mt-1 uppercase font-bold tracking-widest">LVL {playerData.account.account_level} • PEAK {playerData.mmr?.highest_rank?.patched_tier}</p>
                   </div>
                 </div>
+                
+                {/* UPGRADED AI BUTTON */}
                 <button 
                   onClick={handleAnalyzeStats} 
                   disabled={isCoachingStats} 
-                  className="relative z-10 w-full mt-6 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded text-sm transition shadow-[0_0_15px_rgba(79,70,229,0.3)] disabled:opacity-50 cursor-pointer"
+                  className="relative z-10 w-full mt-6 py-3 bg-gradient-to-r from-indigo-900 to-violet-900 hover:from-indigo-800 hover:to-violet-800 border border-indigo-500/30 text-indigo-100 uppercase font-bold tracking-widest rounded-sm text-xs transition-all shadow-[0_0_20px_rgba(79,70,229,0.15)] disabled:opacity-50 cursor-pointer"
                 >
-                  {isCoachingStats ? "AI is analyzing..." : "✨ Analysis my Stats"}
+                  {isCoachingStats ? "SYSTEM ANALYZING..." : "INITIATE AI COACHING"}
                 </button>
               </div>
 
-              <div className="bg-[#1f2326] rounded-lg border border-gray-800 p-6 shadow-lg">
-                <h3 className="text-gray-400 font-bold text-xs uppercase tracking-widest mb-4">Accuracy (Last 20)</h3>
-                <div className="flex justify-between items-end mb-6">
-                  <div className="text-center"><p className="text-gray-400 text-xs">Head</p><p className="text-[#ff4655] font-bold text-xl">{aggregatedStats.hsPercent}%</p></div>
-                  <div className="text-center"><p className="text-gray-400 text-xs">Body</p><p className="text-[#00e5ff] font-bold text-xl">{aggregatedStats.bodyPercent}%</p></div>
-                  <div className="text-center"><p className="text-gray-400 text-xs">Legs</p><p className="text-yellow-400 font-bold text-xl">{aggregatedStats.legPercent}%</p></div>
+              {/* Accuracy Card */}
+              <div className="bg-[#181a1e] border border-white/5 p-6 rounded-sm shadow-xl">
+                <h3 className="text-gray-500 font-bold text-[10px] uppercase tracking-widest mb-4 flex items-center gap-2"><span className="w-2 h-2 bg-[#ff4655] inline-block"></span> HIT DISTRIBUTION</h3>
+                <div className="flex justify-between items-end mb-4">
+                  <div className="text-center"><p className="text-gray-500 text-[10px] uppercase font-bold mb-1">HEAD</p><p className="text-white font-mono text-xl">{aggregatedStats.hsPercent}%</p></div>
+                  <div className="text-center"><p className="text-gray-500 text-[10px] uppercase font-bold mb-1">BODY</p><p className="text-gray-300 font-mono text-xl">{aggregatedStats.bodyPercent}%</p></div>
+                  <div className="text-center"><p className="text-gray-500 text-[10px] uppercase font-bold mb-1">LEGS</p><p className="text-gray-400 font-mono text-xl">{aggregatedStats.legPercent}%</p></div>
                 </div>
-                <div className="w-full h-2 rounded-full flex overflow-hidden bg-gray-800">
+                <div className="w-full h-1.5 flex bg-gray-800">
                   <div style={{ width: `${aggregatedStats.hsPercent}%` }} className="bg-[#ff4655]"></div>
-                  <div style={{ width: `${aggregatedStats.bodyPercent}%` }} className="bg-[#00e5ff]"></div>
-                  <div style={{ width: `${aggregatedStats.legPercent}%` }} className="bg-yellow-400"></div>
+                  <div style={{ width: `${aggregatedStats.bodyPercent}%` }} className="bg-gray-400"></div>
+                  <div style={{ width: `${aggregatedStats.legPercent}%` }} className="bg-gray-600"></div>
                 </div>
               </div>
-
-
             </div>
 
-            {/* RIGHT COLUMN: MAIN STATS & MATCH HISTORY */}
+            {/* RIGHT COLUMN */}
             <div className="w-full lg:w-2/3 flex flex-col gap-6">
-
-              {/* ✨ MOVED HERE: AI Feedback Box */}
+              
+              {/* AI Feedback Box - Tactical Styling */}
               {aiStatFeedback && (
-                <div className="bg-indigo-900/30 border border-indigo-500/50 rounded-lg p-6 text-base text-indigo-100 shadow-lg">
-                  <h3 className="font-bold text-indigo-400 mb-3 text-xl tracking-wide">🤖 AI Coach Analysis</h3>
-                  <div className="whitespace-pre-wrap leading-relaxed">{aiStatFeedback}</div>
+                <div className="bg-[#181a1e] border-l-4 border-l-indigo-500 border-y border-r border-white/5 p-6 shadow-2xl relative">
+                  <div className="absolute top-0 right-0 bg-indigo-500/10 text-indigo-400 text-[10px] uppercase font-bold px-3 py-1">AI GENERATED REPORT</div>
+                  <h3 className="font-black text-white mb-4 text-xl tracking-tight uppercase flex items-center gap-2">
+                    <span className="text-indigo-500">❖</span> Macro Analysis
+                  </h3>
+                  <div className="whitespace-pre-wrap leading-relaxed text-sm text-gray-300">{aiStatFeedback}</div>
                 </div>
               )}
 
+              {/* Stat Grid */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-[#1f2326] border border-gray-800 p-4 rounded-lg flex flex-col justify-center items-center">
-                  <p className="text-gray-400 text-xs uppercase font-bold mb-1">Win Rate</p>
-                  <p className={`text-3xl font-black ${aggregatedStats.winRate >= 50 ? 'text-green-400' : 'text-red-400'}`}>{aggregatedStats.winRate}%</p>
-                  <p className="text-xs text-gray-500 mt-1">{aggregatedStats.wins}W - {aggregatedStats.losses}L</p>
+                <div className="bg-[#181a1e] border border-white/5 p-5 flex flex-col justify-center rounded-sm">
+                  <p className="text-gray-500 text-[10px] uppercase font-bold tracking-widest mb-2">WIN RATE</p>
+                  <p className={`text-2xl font-mono ${aggregatedStats.winRate >= 50 ? 'text-[#00e5ff]' : 'text-[#ff4655]'}`}>{aggregatedStats.winRate}%</p>
                 </div>
-                <div className="bg-[#1f2326] border border-gray-800 p-4 rounded-lg flex flex-col justify-center items-center">
-                  <p className="text-gray-400 text-xs uppercase font-bold mb-1">K/D Ratio</p>
-                  <p className="text-3xl font-black text-white">{aggregatedStats.kd}</p>
-                  <p className="text-xs text-gray-500 mt-1">{aggregatedStats.kills}K / {aggregatedStats.deaths}D</p>
+                <div className="bg-[#181a1e] border border-white/5 p-5 flex flex-col justify-center rounded-sm">
+                  <p className="text-gray-500 text-[10px] uppercase font-bold tracking-widest mb-2">K/D RATIO</p>
+                  <p className="text-2xl font-mono text-white">{aggregatedStats.kd}</p>
                 </div>
-                <div className="bg-[#1f2326] border border-gray-800 p-4 rounded-lg flex flex-col justify-center items-center">
-                  <p className="text-gray-400 text-xs uppercase font-bold mb-1">Avg Score (ACS)</p>
-                  <p className="text-3xl font-black text-white">{aggregatedStats.acs}</p>
+                <div className="bg-[#181a1e] border border-white/5 p-5 flex flex-col justify-center rounded-sm">
+                  <p className="text-gray-500 text-[10px] uppercase font-bold tracking-widest mb-2">AVG SCORE</p>
+                  <p className="text-2xl font-mono text-white">{aggregatedStats.acs}</p>
                 </div>
-                <div className="bg-[#1f2326] border border-gray-800 p-4 rounded-lg flex flex-col justify-center items-center">
-                  <p className="text-gray-400 text-xs uppercase font-bold mb-1">Assists</p>
-                  <p className="text-3xl font-black text-white">{aggregatedStats.assists}</p>
+                <div className="bg-[#181a1e] border border-white/5 p-5 flex flex-col justify-center rounded-sm">
+                  <p className="text-gray-500 text-[10px] uppercase font-bold tracking-widest mb-2">ASSISTS</p>
+                  <p className="text-2xl font-mono text-white">{aggregatedStats.assists}</p>
                 </div>
               </div>
 
-              <div className="bg-[#1f2326] border border-gray-800 rounded-lg overflow-hidden shadow-lg">
-                <div className="px-6 py-4 border-b border-gray-800 bg-[#181a1e]">
-                  <h3 className="font-bold text-gray-300">Last {playerData.matches.length} Matches</h3>
+              {/* Match History */}
+              <div className="bg-[#181a1e] border border-white/5 rounded-sm shadow-xl">
+                <div className="px-6 py-4 border-b border-white/5 flex items-center gap-2">
+                   <span className="w-2 h-2 bg-gray-500 inline-block"></span>
+                   <h3 className="font-bold text-gray-400 text-[10px] uppercase tracking-widest">LAST {playerData.matches.length} MATCH LOGS</h3>
                 </div>
                 <div className="flex flex-col">
                   {playerData.matches.map((match: any, index: number) => {
@@ -268,47 +234,32 @@ export default function Home() {
                     const enemyScore = match.teams && match.teams[enemyTeam] ? match.teams[enemyTeam].rounds_won : 0;
                     const matchKd = (myStats.stats.kills / (myStats.stats.deaths || 1)).toFixed(2);
                     
-                    // Add 'mode' to the match info we save for the VOD!
-                    const matchInfoForVod = {
-                      mode: match.metadata.mode, 
-                      agent: myStats.character, 
-                      map: match.metadata.map, 
-                      won, 
-                      kills: myStats.stats.kills, 
-                      deaths: myStats.stats.deaths, 
-                      assists: myStats.stats.assists, 
-                      teamRounds: myScore, 
-                      enemyRounds: enemyScore 
-                    };
-                    
                     return (
-                      <div key={index} className={`flex items-center justify-between p-4 border-b border-gray-800/50 hover:bg-gray-800/20 transition ${won ? 'border-l-4 border-l-[#00e5ff] bg-gradient-to-r from-[#00e5ff]/5 to-transparent' : 'border-l-4 border-l-[#ff4655] bg-gradient-to-r from-[#ff4655]/5 to-transparent'}`}>
-                        {/* Agent, Mode & Map */}
+                      <div key={index} className={`flex items-center justify-between px-6 py-4 border-b border-white/5 hover:bg-white/[0.02] transition ${won ? 'border-l-[3px] border-l-[#00e5ff]' : 'border-l-[3px] border-l-[#ff4655]'}`}>
+                        
                         <div className="flex items-center gap-4 w-1/4">
-                          <img src={myStats.assets.agent.small} alt="agent" className="w-12 h-12 rounded-full border border-gray-700 bg-[#0f1923]" />
+                          <img src={myStats.assets.agent.small} alt="agent" className="w-10 h-10 bg-[#0f1923] p-1 border border-white/10" />
                           <div>
-                            {/* NEW: Displays the Game Mode (Competitive, Swiftplay, etc.) */}
-                            <p className="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-0.5">
-                              {match.metadata.mode}
-                            </p>
-                            <p className="font-bold text-white text-lg leading-tight">{match.metadata.map}</p>
-                            <p className="text-xs text-gray-500">{myStats.character}</p>
+                            <p className="text-[9px] text-gray-500 uppercase font-bold tracking-widest mb-0.5">{match.metadata.mode}</p>
+                            <p className="font-black text-white text-base uppercase leading-none">{match.metadata.map}</p>
                           </div>
                         </div>
+                        
                         <div className="w-1/6 text-center">
-                          <p className={`font-black text-lg ${won ? 'text-[#00e5ff]' : 'text-[#ff4655]'}`}>{myScore} : {enemyScore}</p>
-                          <p className="text-[10px] uppercase font-bold text-gray-500">{won ? 'Victory' : 'Defeat'}</p>
+                          <p className={`font-mono text-xl ${won ? 'text-[#00e5ff]' : 'text-[#ff4655]'}`}>{myScore} - {enemyScore}</p>
                         </div>
+                        
                         <div className="w-1/5 text-center">
-                          <p className="font-mono text-gray-200 font-bold">{myStats.stats.kills} / {myStats.stats.deaths} / {myStats.stats.assists}</p>
-                          <p className="text-xs text-gray-500 mt-1">KD: <span className={Number(matchKd) >= 1 ? 'text-green-400' : 'text-red-400'}>{matchKd}</span></p>
+                          <p className="font-mono text-white text-sm">{myStats.stats.kills} / {myStats.stats.deaths} / {myStats.stats.assists}</p>
+                          <p className="text-[10px] text-gray-500 mt-1 uppercase font-bold tracking-widest">KD: <span className={Number(matchKd) >= 1 ? 'text-[#00e5ff]' : 'text-[#ff4655]'}>{matchKd}</span></p>
                         </div>
+                        
                         <div className="w-auto text-right">
                           <button 
-                            onClick={() => handleSelectMatchForVod(matchInfoForVod)} 
-                            className="p-2 bg-gray-800 hover:bg-[#ff4655] rounded text-xs font-bold transition border border-gray-700 hover:border-[#ff4655] text-gray-300 hover:text-white"
+                            onClick={() => handleSelectMatchForVod({ mode: match.metadata.mode, agent: myStats.character, map: match.metadata.map, won, kills: myStats.stats.kills, deaths: myStats.stats.deaths, assists: myStats.stats.assists, teamRounds: myScore, enemyRounds: enemyScore })} 
+                            className="px-4 py-2 bg-transparent hover:bg-white/5 border border-white/10 text-[10px] text-gray-300 uppercase font-bold tracking-widest transition rounded-sm"
                           >
-                            🎬 Analyze VOD
+                            Upload VOD
                           </button>
                         </div>
                       </div>
@@ -322,88 +273,61 @@ export default function Home() {
 
         {/* TAB 2: VOD ANALYZER */}
         {activeTab === 'vod' && (
-          <div className="bg-[#1f2326] p-8 rounded-lg shadow-lg border border-gray-800 w-full max-w-4xl mx-auto">
-            <h2 className="text-2xl font-bold mb-6 border-b border-gray-800 pb-4">🎬 VOD Analyzer</h2>
+          <div className="bg-[#181a1e] p-8 rounded-sm shadow-2xl border border-white/5 w-full max-w-4xl mx-auto relative">
+            <h2 className="text-2xl font-black mb-6 uppercase tracking-tight flex items-center gap-2">
+              <span className="text-[#ff4655]">❖</span> Micro Analysis Protocol
+            </h2>
             
             {selectedMatch ? (
-              <div className="mb-6 p-4 bg-[#ff4655]/10 rounded border-l-4 border-[#ff4655]">
-                <p className="text-xs text-[#ff4655] font-bold uppercase mb-1">Context Linked</p>
-                <p className="font-bold text-white">{selectedMatch.agent} on {selectedMatch.map} • {selectedMatch.kills}K / {selectedMatch.deaths}D</p>
+              <div className="mb-8 p-4 bg-[#ff4655]/5 border border-[#ff4655]/20 rounded-sm">
+                <p className="text-[10px] text-[#ff4655] font-bold uppercase tracking-widest mb-1">LINKED CONTEXT</p>
+                <p className="text-sm font-mono text-white uppercase">{selectedMatch.agent} // {selectedMatch.map} // {selectedMatch.kills}K - {selectedMatch.deaths}D</p>
               </div>
             ) : (
-               <div className="mb-6 p-4 bg-yellow-900/20 rounded border-l-4 border-yellow-500 text-yellow-300 text-sm">
-                 ⚠️ No match context linked. For the smartest coaching, select a match from the Tracker Dashboard first.
+               <div className="mb-8 p-4 bg-yellow-500/5 border border-yellow-500/20 rounded-sm">
+                 <p className="text-[10px] text-yellow-500 font-bold uppercase tracking-widest">⚠️ NO CONTEXT DETECTED. SELECT A MATCH FROM DASHBOARD FOR BEST RESULTS.</p>
                </div>
             )}
 
             {!previewUrl ? (
-              <label className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed border-gray-600 rounded-lg cursor-pointer hover:bg-gray-800/50 transition">
-                <span className="text-gray-400 mb-2 text-xl">📁 Select Video (.mp4)</span>
-                
-                {/* NEW: The 4.5MB Warning Message */}
-                <span className="text-[#ff4655] text-sm font-bold bg-[#ff4655]/10 px-3 py-1 rounded mt-2">
-                  ⚠️ Max file size: 4.5 MB
-                </span>
-                
-                <input 
-                  type="file" 
-                  accept="video/mp4,video/webm" 
-                  className="hidden" 
-                  onChange={(e) => { 
-                    const f = e.target.files?.[0]; 
-                    if(f){ 
-                      // NEW: JavaScript check to block files larger than 4.5 MB
-                      const maxSizeInBytes = 4.5 * 1024 * 1024;
-                      if (f.size > maxSizeInBytes) {
-                        alert("File is too large! Because this is a free portfolio demo, please compress your video to under 4.5 MB.");
-                        return;
-                      }
-                      setVideoFile(f); 
-                      setPreviewUrl(URL.createObjectURL(f)); 
-                    } 
-                  }} 
-                />
+              <label className="flex flex-col items-center justify-center w-full h-48 border border-dashed border-white/20 bg-white/5 hover:bg-white/10 transition cursor-pointer rounded-sm">
+                <span className="text-gray-300 font-bold uppercase tracking-widest text-sm mb-2">SELECT FOOTAGE (.MP4)</span>
+                <span className="text-[10px] text-gray-500 uppercase font-bold tracking-widest">MAX SIZE: 4.5 MB</span>
+                <input type="file" accept="video/mp4,video/webm" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if(f){ setVideoFile(f); setPreviewUrl(URL.createObjectURL(f)); } }} />
               </label>
             ) : (
               <div className="flex flex-col">
-                <video src={previewUrl} controls className="w-full max-h-[500px] object-contain rounded mb-4 shadow-lg border border-gray-700 bg-black" />
-                <div className="flex gap-4 w-full mb-6">
-                  <button onClick={() => { setPreviewUrl(null); setVideoFile(null); setAiVodFeedback(null); }} className="px-6 py-3 bg-gray-700 hover:bg-gray-600 rounded font-bold transition disabled:opacity-50" disabled={isAnalyzingVideo}>Cancel</button>
-                  <button onClick={handleAnalyzeVideo} className="flex-1 px-4 py-3 bg-[#ff4655] hover:bg-[#ff5866] text-white rounded font-bold transition disabled:opacity-50 shadow-[0_0_15px_rgba(255,70,85,0.4)]">
-                    {isAnalyzingVideo ? "Watching VOD..." : "Analyze Contextual VOD"}
+                <video src={previewUrl} controls className="w-full max-h-[400px] object-contain mb-6 border border-white/10 bg-black rounded-sm" />
+                <div className="flex gap-4 w-full mb-2">
+                  <button onClick={() => { setPreviewUrl(null); setVideoFile(null); setAiVodFeedback(null); }} className="px-8 py-3 bg-transparent border border-white/10 hover:bg-white/5 text-[10px] font-bold uppercase tracking-widest text-white transition rounded-sm disabled:opacity-50" disabled={isAnalyzingVideo}>CANCEL</button>
+                  <button onClick={handleAnalyzeVideo} className="flex-1 py-3 bg-[#ff4655] hover:bg-[#ff5866] text-white text-[10px] font-bold uppercase tracking-widest transition rounded-sm disabled:opacity-50" disabled={isAnalyzingVideo}>
+                    {isAnalyzingVideo ? "PROCESSING FOOTAGE..." : "INITIATE SCAN"}
                   </button>
                 </div>
               </div>
             )}
 
             {aiVodFeedback && (
-              <div className="mt-2 p-6 bg-indigo-900/30 border border-indigo-500/50 rounded-lg whitespace-pre-wrap text-indigo-100 shadow-lg">
-                <h3 className="font-bold text-indigo-400 mb-2 text-lg">🤖 AI Micro Analysis</h3>
-                <div className="leading-relaxed">{aiVodFeedback}</div>
+              <div className="mt-8 p-6 bg-indigo-500/10 border border-indigo-500/20 rounded-sm">
+                <h3 className="font-bold text-indigo-400 mb-4 text-sm uppercase tracking-widest border-b border-indigo-500/20 pb-2">SCAN RESULTS</h3>
+                <div className="leading-relaxed text-sm text-gray-300 whitespace-pre-wrap">{aiVodFeedback}</div>
               </div>
             )}
           </div>
         )}
       </div>
 
-      {/* --- NEW FOOTER --- */}
-      <footer className="w-full max-w-6xl mt-16 pt-8 border-t border-gray-800/50 text-center text-gray-500 text-sm pb-8 flex flex-col items-center gap-2">
-        <p>&copy; {new Date().getFullYear()} Copyright reserved to Naveen Joseph.</p>
+      {/* FOOTER */}
+      <footer className="w-full max-w-6xl mt-16 pt-8 border-t border-white/10 text-center text-gray-600 text-[10px] uppercase font-bold tracking-widest pb-8 flex flex-col items-center gap-2 relative z-10">
+        <p>&copy; {new Date().getFullYear()} NAVEEN JOSEPH.</p>
         <p>
-          Creatively built by{' '}
-          <a 
-            href="https://www.naveenjoseph.me/" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="text-[#ff4655] font-bold hover:text-white transition-colors duration-300 relative group"
-          >
-            Naveen Joseph
-            {/* Cool animated underline effect on hover */}
-            <span className="absolute -bottom-1 left-0 w-0 h-[2px] bg-[#ff4655] transition-all duration-300 group-hover:w-full"></span>
+          BUILT BY{' '}
+          <a href="https://www.naveenjoseph.me/" target="_blank" rel="noopener noreferrer" className="text-[#ff4655] hover:text-white transition-colors duration-300 relative group">
+            NAVEEN JOSEPH
+            <span className="absolute -bottom-1 left-0 w-0 h-[1px] bg-[#ff4655] transition-all duration-300 group-hover:w-full"></span>
           </a>
         </p>
       </footer>
-
     </main>
   );
 }

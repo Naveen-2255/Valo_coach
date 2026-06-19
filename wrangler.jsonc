@@ -1,0 +1,10 @@
+{
+  "name": "valorant-ai-coach",
+  "compatibility_date": "2026-06-18",
+  "observability": {
+    "enabled": true
+  },
+  "compatibility_flags": [
+    "nodejs_compat"
+  ]
+}
