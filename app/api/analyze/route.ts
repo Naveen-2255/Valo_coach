@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
     }
     if (googleFile.state === 'FAILED') throw new Error("Video processing failed.");
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
     
     // NEW SUPER-PROMPT: Combining Stats Context with Video Analysis
     const prompt = `

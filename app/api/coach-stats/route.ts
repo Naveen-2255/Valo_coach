@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
     }
 
     // We use 1.5-pro here because it is much more stable and rarely gets the 503 Traffic Error
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
     const prompt = `
       You are an elite Valorant Analyst and Radiant Coach. I am giving you advanced Tracker.gg style metrics for a player named ${playerName} over their last 20 matches.
