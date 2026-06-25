@@ -50,37 +50,32 @@ export async function POST(req: NextRequest) {
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
     const prompt = `
-      You are a strictly objective, data-driven Valorant Analyst. Watch this VOD of the user playing ${agent}.
-      Video AI is prone to visual hallucinations. To prevent this, you MUST follow a strict 3-step verification process. DO NOT SKIP STEPS. DO NOT GUESS.
+      You are a strictly objective, tough-love Valorant Analyst. Watch this VOD of ${agent}.
+      
+      MATCH CONTEXT: ${matchContext}
 
-      MATCH CONTEXT FOR THIS VIDEO:
-      ${matchContext}
+      **PHASE 1: VERIFICATION (Do not output this phase, just think about it)**
+      - Check their HUD for abilities and ultimate points.
+      - Verify kills ONLY by looking at the kill feed or combat report.
 
-      **PHASE 1: HUD & INVENTORY CHECK (Objective Facts Only)**
-      - Look at the bottom center of the screen at the very beginning. State the exact number of ability charges they have. State their ultimate points (e.g., 3/6).
-      - Watch the abilities. An ability is ONLY used if the charge number goes down. If the charge number stays the same, the ability was CANCELLED. State exactly which abilities were actually consumed.
+      **PHASE 2: THE COACHING ANALYSIS**
+      Now, use the facts to grade them and build a timeline. 
+      Format your EXACT response like this:
 
-      **PHASE 2: COMBAT VERIFICATION (Objective Facts Only)**
-      - DO NOT assume a kill happened just because the player shot their gun.
-      - RULE: You must verify a kill by looking for the red skull icon or checking the top-right kill feed.
-      - How does the clip end? Does the user die, survive, or win the round? If they die, check the combat report popup to see who killed them.
+      **📊 VOD REPORT CARD**
+      *   **Overall Grade:** [A, B, C, D, or F]
+      *   **Aim:** [1 to 5 Stars, use ★ and ☆]
+      *   **Positioning:** [1 to 5 Stars]
+      *   **Utility:** [1 to 5 Stars]
+      *   **Game Sense:** [1 to 5 Stars]
 
-      **PHASE 3: THE COACHING ANALYSIS**
-      - Now, and ONLY now, use the facts established in Phase 1 and 2 to analyze the player's mechanics.
-      - Did they die with unused utility?
-      - How was their crosshair placement?
-      - Provide 2 brutally honest, highly specific tips to fix their mechanics.
+      **⏱️ MATCH TIMELINE**
+      (List 2 to 4 specific timestamps from the video with a ✅ for good plays or ❌ for mistakes. Be highly actionable).
+      *   [Timestamp] [✅ or ❌] [What they did right or wrong. E.g., "❌ 0:15 - Wide swung alone instead of waiting for your initiator's flash."]
+      *   [Timestamp] [✅ or ❌] [Next event]
 
-      FORMAT YOUR EXACT RESPONSE LIKE THIS:
-
-      **🔍 Step 1: HUD & Utility Analysis**
-      (List the abilities they had, and verify if the charges actually went down. Confirm Ultimate status).
-
-      **⚔️ Step 2: Combat Verification**
-      (List the actual outcome of the clip. Who died, based ONLY on the kill feed/combat report).
-
-      **🎯 Step 3: Coach's Verdict**
-      (The tactical mistakes made, and the 2 tips to fix them based on the objective data).
+      **🗣️ COACH'S VERDICT**
+      (Give one short paragraph of actionable advice. Talk like a real coach. E.g., "You won the duel, but immediately repeeked the same angle. In Gold+, that gets traded instantly. Back off after the first kill.")
     `;
 
     const result = await model.generateContent([

@@ -17,26 +17,36 @@ export async function POST(req: NextRequest) {
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
     const prompt = `
-      You are an elite Valorant Analyst and Radiant Coach. I am giving you advanced Tracker.gg style metrics for a player named ${playerName} over their last 20 matches.
-      
-      Tracker Data:
-      ${JSON.stringify(matchData)}
+      You are a tough-love, highly analytical Radiant Valorant Coach. Analyze this player's last 20 matches.
+      Player: ${playerName}
+      Data: ${JSON.stringify(matchData)}
 
-      CRITICAL COACHING RUBRIC:
-      1. Headshot Percentage (HS%): Pro players have 25%+. If it's below 20%, tell them to work on crosshair placement.
-      2. Average Combat Score (ACS): Below 200 means low impact. Above 250 means they are carrying.
-      3. Agent Roles: Look at their recent games. Are they playing Duelists, Controllers, or Sentinels? Grade them based on their role (e.g., Duelists need high KD, Initiators need assists).
-      4. DO NOT hallucinate. Be highly analytical.
+      CRITICAL INSTRUCTIONS:
+      - Give actionable, personality-driven coaching. Do not sound like a robot. Sound like a real Esports coach.
+      - Calculate their "Estimated Potential Rank" based on their mechanics (HS% > 25% = High, ACS > 230 = High).
+      - Find their 3 biggest specific mistakes based on the numbers (e.g., low assists on initiators, dying too much, low win rate on a specific map).
 
-      Format your response exactly like this:
-      **📊 Tracker Summary:**
-      (Objectively analyze their HS%, ACS, and Win Rate. Are their mechanics good for their role?)
+      Format EXACTLY like this:
 
-      **⚠️ The Weakness:**
-      (Identify the single biggest statistical flaw in these 20 games).
+      **📋 AI COACHING REPORT CARD**
+      *   **Player:** ${playerName}
+      *   **Top Strength:** (e.g., Raw Aim, High Impact, Good Support)
+      *   **Top Weakness:** (e.g., Over-aggression, Inconsistent, Weak Agent Pool)
+      *   **Today's Grade:** (A+, B-, C, etc.)
+      *   **Estimated Potential Rank:** (Guess their rank based on ACS and HS%)
 
-      **🎯 How to Improve:**
-      (Give 2 highly specific tips to fix that exact statistical weakness).
+      **🏅 MECHANICS BREAKDOWN**
+      *   Aim: [Estimate Rank, e.g., Gold 2] (based on HS%)
+      *   Impact: [Estimate Rank] (based on ACS)
+      *   Teamplay: [Estimate Rank] (based on Assists & Agent role)
+
+      **⚠️ 3 BIGGEST MISTAKES**
+      1. ❌ [Mistake 1 - Actionable, e.g., "You are playing Clove but dying 18 times a game. Stop dry-peeking before your duelists."]
+      2. ❌ [Mistake 2]
+      3. ❌ [Mistake 3]
+
+      **🗣️ COACH'S VERDICT**
+      (Give one short paragraph of brutal, honest advice on what they need to do to reach their Potential Rank.)
     `;
 
     const result = await model.generateContent(prompt);
